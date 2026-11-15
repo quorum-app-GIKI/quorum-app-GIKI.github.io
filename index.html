@@ -1,0 +1,260 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0f766e"><meta name="attendance-hub-page" content="1"><meta name="robots" content="noindex,nofollow"><meta name="referrer" content="no-referrer"><link rel="icon" href="data:,"><title>Mark attendance</title>
+<!-- The phone page for check-ins through the hub. One self-contained file: it can be served by the instructor's computer or by any static web host.
+     Everything it needs is after the # in the address (hub address, public key, lecture, code); a phone never sends that part to a web server.
+     Its look is the app's own student page (the style rules below are copied from the app's stylesheet; tests/test_z13_hubpage.py checks they still match). -->
+<style>
+:root{
+  color-scheme:dark;
+  --bg:#05080b; --card-s:#0b1015; --ink:#e8f1f8; --muted:#8aa0b2; --line:#1b2833; --soft-s:#111a22;
+  --accent:#7cc4ff; --accent-ink:#031220; --accent-soft:#0e2740; --accent-line:#2a5d8c;
+  --green:#5ee6a8; --green-bg:#0c2a1f; --red:#ff8f8f; --red-bg:#2c1215; --amber:#ffd36e; --amber-bg:#2c2108;
+  --blue:#8ec5ff; --blue-bg:#0f2238; --grey-bg:#17222b;
+  --radius:14px; --shadow:0 0 0 1px rgba(var(--acc-rgb),.03),0 8px 28px rgba(0,0,0,.45);
+  --glow:0 0 0 3px rgba(var(--acc-rgb),.18);
+  --acc-rgb:124,196,255; --bg-glow:#0b1c2c; --nav-bg:rgba(5,8,11,.82); --brand-a:#a9dcff; --brand-b:#4aa8f0;
+  --input-bg:#070b0f; --h1a:#fff; --h1b:#b9dcf7; --scroll:#1f3140; --leave-bg:#10263d; --leave-ink:#8ec5ff; --off-bg:#241d3d; --off-ink:#c1b0ff; --off-line:#8a73e0; --ok2:#6ee7a8; --warn2:#ffc861; --bad2:#ff9d9d;
+}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:radial-gradient(1200px 500px at 50% -200px,var(--bg-glow) 0,transparent 70%),var(--bg);background-attachment:fixed;color:var(--ink);font:15px/1.5 "Segoe UI Variable","Segoe UI",system-ui,-apple-system,Roboto,sans-serif;-webkit-font-smoothing:antialiased}
+a{color:var(--accent);text-decoration:none} a:hover{text-decoration:underline}
+h1{font-size:1.5rem;margin:0 0 .25rem;letter-spacing:-.01em} h2{font-size:1.1rem;margin:0 0 .6rem} h3{font-size:.95rem;margin:0 0 .4rem}
+.muted{color:var(--muted)} .small{font-size:.85rem} .mono{font-variant-numeric:tabular-nums}
+.card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:18px;box-shadow:var(--shadow)}
+.stack>*+*{margin-top:12px}
+.btn{font:inherit;font-weight:600;border:1px solid var(--line);background:var(--card);color:var(--ink);padding:8px 14px;border-radius:9px;cursor:pointer;display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
+.btn:hover{background:var(--soft);border-color:var(--accent-line);text-decoration:none} .btn:disabled{opacity:.5;cursor:default}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink);box-shadow:0 0 18px rgba(var(--acc-rgb),.22)} .btn.primary:hover{filter:brightness(1.08)}
+.btn.danger{color:var(--red);border-color:var(--red-bg)} .btn.sm{padding:4px 10px;font-size:.85rem;font-weight:500}
+.btn.lg{padding:12px 20px;font-size:1.02rem}
+label{display:block;font-size:.82rem;font-weight:600;color:var(--muted);margin-bottom:4px}
+input,select,textarea{font:inherit;color:var(--ink);background:var(--input-bg);border:1px solid var(--line);border-radius:9px;padding:8px 10px;width:100%}
+input:focus,select:focus,textarea:focus{outline:none;border-color:var(--accent);box-shadow:var(--glow)}
+.alert{padding:10px 14px;border-radius:10px;font-size:.9rem;background:var(--amber-bg);color:var(--amber)}
+.alert.bad{background:var(--red-bg);color:var(--red)} .alert.ok{background:var(--green-bg);color:var(--green)}
+h1{background:linear-gradient(180deg,var(--h1a),var(--h1b));-webkit-background-clip:text;background-clip:text;color:transparent}
+.card{background:linear-gradient(180deg,rgba(var(--acc-rgb),.035),transparent 60%),var(--card)}
+body{display:flex;justify-content:center;padding:18px 14px calc(30px + env(safe-area-inset-bottom))}
+.wrap{width:100%;max-width:440px}
+.hd{margin:6px 2px 14px} .hd .k{font-size:.8rem;font-weight:700;color:color-mix(in srgb,var(--accent) 78%,var(--ink));text-transform:uppercase;letter-spacing:.06em}
+.hd h1{font-size:1.45rem;margin:2px 0}
+#reg{font-size:1.5rem;letter-spacing:.06em;text-align:center;padding:14px;font-variant-numeric:tabular-nums}
+.result{text-align:center;padding:10px 4px}
+.result .ic{width:68px;height:68px;border-radius:50%;margin:0 auto 12px;display:flex;align-items:center;justify-content:center;font-size:2rem;font-weight:700}
+.ic.Present,.ic.Late{background:var(--green-bg);color:var(--green)} .ic.Absent{background:var(--red-bg);color:var(--red)} .ic.Flagged,.ic.info{background:var(--amber-bg);color:var(--amber)}
+.priv{font-size:.8rem;color:var(--muted);margin-top:14px;text-align:center}
+[hidden]{display:none!important}
+/* ==== from app.css: colours, light mode, glass (installer/build_hubpage.py) ==== */
+:root{--card:var(--card-s);--soft:var(--soft-s);--g1:124 196 255;--g2:150 125 255;--bo:1}
+html[data-theme="deepblue"]{--g1:80 125 255; --g2:60 205 255; --bg:#040918; --card-s:#0a1226; --line:#1a2a52; --soft-s:#0f1a38; --accent:#6f9bff; --accent-ink:#040a1e; --accent-soft:#11224d; --accent-line:#2c4d9e; --acc-rgb:111,155,255; --bg-glow:#0d1f4f; --nav-bg:rgba(4,9,24,.84); --brand-a:#9db8ff; --brand-b:#4a74e8; --muted:#8c9fc4}
+html[data-theme="emerald"]{--g1:60 220 150; --g2:45 170 225; --bg:#040a08; --card-s:#0a1210; --line:#1a2b24; --soft-s:#101c17; --accent:#5ee6a8; --accent-ink:#03150d; --accent-soft:#0c2a1f; --accent-line:#2a7a58; --acc-rgb:94,230,168; --bg-glow:#0b2a1f; --nav-bg:rgba(4,10,8,.84); --brand-a:#9af0c9; --brand-b:#2fbf86; --muted:#8aa89a}
+html[data-theme="violet"]{--g1:170 130 255; --g2:255 125 205; --bg:#07050d; --card-s:#0e0b16; --line:#2a2040; --soft-s:#171226; --accent:#b79cff; --accent-ink:#120626; --accent-soft:#1f1240; --accent-line:#5a43a8; --acc-rgb:183,156,255; --bg-glow:#1a0f38; --nav-bg:rgba(7,5,13,.84); --brand-a:#d3c0ff; --brand-b:#8d63f0; --muted:#a096b8}
+html[data-theme="rose"]{--g1:255 125 175; --g2:255 175 115; --bg:#0c0508; --card-s:#150b10; --line:#33202a; --soft-s:#1f1118; --accent:#ff8fb5; --accent-ink:#2a0614; --accent-soft:#3a0f22; --accent-line:#9a2f5a; --acc-rgb:255,143,181; --bg-glow:#2a0b18; --nav-bg:rgba(12,5,8,.84); --brand-a:#ffc0d6; --brand-b:#f0517f; --muted:#b8949f}
+html[data-theme="amber"]{--g1:255 195 85; --g2:255 115 125; --bg:#0b0805; --card-s:#14100a; --line:#33281a; --soft-s:#1d160d; --accent:#ffc861; --accent-ink:#241500; --accent-soft:#33220a; --accent-line:#8a5d14; --acc-rgb:255,200,97; --bg-glow:#2a1c07; --nav-bg:rgba(11,8,5,.84); --brand-a:#ffe0a0; --brand-b:#f0a024; --muted:#b8a58a}
+html[data-theme="aqua"]{--g1:55 225 225; --g2:90 150 255; --bg:#03090b; --card-s:#091215; --line:#163034; --soft-s:#0e1d21; --accent:#4fe3e0; --accent-ink:#021416; --accent-soft:#0a2a2d; --accent-line:#1f7c80; --acc-rgb:79,227,224; --bg-glow:#07262a; --nav-bg:rgba(3,9,11,.84); --brand-a:#9af2ef; --brand-b:#22bdc0; --muted:#88a9ad}
+html[data-theme="orchid"]{--g1:225 125 255; --g2:125 140 255; --bg:#0a050d; --card-s:#130b18; --line:#33203d; --soft-s:#1d1126; --accent:#e08bff; --accent-ink:#1f0630; --accent-soft:#2f1040; --accent-line:#7b3a9c; --acc-rgb:224,139,255; --bg-glow:#27103a; --nav-bg:rgba(10,5,13,.84); --brand-a:#f0c2ff; --brand-b:#bf55e8; --muted:#b19ac0}
+html[data-theme="sunset"]{--g1:255 135 95; --g2:255 90 165; --bg:#0c0605; --card-s:#160d0b; --line:#37221d; --soft-s:#201410; --accent:#ff9a6b; --accent-ink:#2a0d02; --accent-soft:#3a1809; --accent-line:#9a4a26; --acc-rgb:255,154,107; --bg-glow:#2e1209; --nav-bg:rgba(12,6,5,.84); --brand-a:#ffc8ae; --brand-b:#f0643a; --muted:#bb9c90}
+html[data-theme="graphite"]{--g1:170 190 215; --g2:125 135 165; --bg:#06080a; --card-s:#0d1114; --line:#222b33; --soft-s:#151b20; --accent:#b9c6d6; --accent-ink:#0a1118; --accent-soft:#18212b; --accent-line:#4b5b6e; --acc-rgb:185,198,214; --bg-glow:#141c24; --nav-bg:rgba(6,8,10,.84); --brand-a:#dfe7f0; --brand-b:#8396ad; --muted:#8b98a6}
+html[data-mode="light"]{color-scheme:light;
+  --bg:#f3f6fa; --card-s:#ffffff; --ink:#14212d; --muted:#586878; --line:#d3dce6; --soft-s:#edf2f7; --input-bg:#ffffff;
+  --accent:#1f6fb8; --accent-ink:#ffffff; --accent-soft:#e3f0fc; --accent-line:#9cc4e8; --acc-rgb:31,111,184;
+  --green:#12724a; --green-bg:#dcf4e8; --red:#b3261e; --red-bg:#fde6e4; --amber:#7d5300; --amber-bg:#fff0cc;
+  --blue:#1f5fa8; --blue-bg:#e2edfb; --grey-bg:#e7edf3;
+  --shadow:0 1px 2px rgba(20,33,45,.06),0 6px 20px rgba(20,33,45,.07);
+  --bg-glow:#dbe9f7; --nav-bg:rgba(243,246,250,.9); --brand-a:#5fb0f0; --brand-b:#1f6fb8;
+  --h1a:#0d2a46; --h1b:#1f6fb8; --scroll:#b7c3cf; --leave-bg:#e2edfb; --leave-ink:#1f5fa8; --off-bg:#eee8fb; --off-ink:#5b3fb3; --off-line:#9c86e0;
+  --ok2:#12724a; --warn2:#7d5300; --bad2:#b3261e}
+html[data-mode="light"][data-theme="deepblue"]{--bg:#f1f4fc; --soft-s:#eaeffb; --line:#d0d9ee; --accent:#2f58c9; --accent-soft:#e3eafc; --accent-line:#a3b6ec; --acc-rgb:47,88,201; --bg-glow:#d9e3fb; --nav-bg:rgba(241,244,252,.9); --brand-a:#7e9cf0; --brand-b:#2f58c9; --h1b:#2f58c9}
+html[data-mode="light"][data-theme="emerald"]{--bg:#f0f7f3; --soft-s:#e7f2ec; --line:#cfe0d7; --accent:#12795a; --accent-soft:#dff3ea; --accent-line:#8fcfb4; --acc-rgb:18,121,90; --bg-glow:#d5eee1; --nav-bg:rgba(240,247,243,.9); --brand-a:#4fcf9f; --brand-b:#12795a; --h1b:#12795a}
+html[data-mode="light"][data-theme="violet"]{--bg:#f5f2fb; --soft-s:#eeeaf8; --line:#dcd4ee; --accent:#6a45c6; --accent-soft:#ebe4fa; --accent-line:#b7a3e8; --acc-rgb:106,69,198; --bg-glow:#e5dcf8; --nav-bg:rgba(245,242,251,.9); --brand-a:#a98cf0; --brand-b:#6a45c6; --h1b:#6a45c6}
+html[data-mode="light"][data-theme="rose"]{--bg:#fbf1f4; --soft-s:#f6e8ed; --line:#ead3dc; --accent:#b02a5a; --accent-soft:#fbe3ec; --accent-line:#eba3bd; --acc-rgb:176,42,90; --bg-glow:#f8dbe5; --nav-bg:rgba(251,241,244,.9); --brand-a:#f08ab0; --brand-b:#b02a5a; --h1b:#b02a5a}
+html[data-mode="light"][data-theme="amber"]{--bg:#fbf6ec; --soft-s:#f6efde; --line:#e6dabf; --accent:#8a5700; --accent-soft:#faecc9; --accent-line:#e2bf6e; --acc-rgb:138,87,0; --bg-glow:#f6e6bd; --nav-bg:rgba(251,246,236,.9); --brand-a:#f0b34a; --brand-b:#8a5700; --h1b:#8a5700}
+html[data-mode="light"][data-theme="aqua"]{--bg:#eef8f8; --soft-s:#e3f3f3; --line:#c8e2e3; --accent:#0b6a73; --accent-soft:#d8f1f2; --accent-line:#84cdd1; --acc-rgb:11,106,115; --bg-glow:#cdeeef; --nav-bg:rgba(238,248,248,.9); --brand-a:#4fd0d3; --brand-b:#0b6a73; --h1b:#0b6a73}
+html[data-mode="light"][data-theme="orchid"]{--bg:#f9f1fb; --soft-s:#f2e6f6; --line:#e4d0ea; --accent:#862ea8; --accent-soft:#f1defa; --accent-line:#cf9ee6; --acc-rgb:134,46,168; --bg-glow:#efd7f8; --nav-bg:rgba(249,241,251,.9); --brand-a:#d58cf2; --brand-b:#862ea8; --h1b:#862ea8}
+html[data-mode="light"][data-theme="sunset"]{--bg:#fcf2ed; --soft-s:#f8e8e0; --line:#ecd5c8; --accent:#a33c12; --accent-soft:#fbe5d9; --accent-line:#ee9f7d; --acc-rgb:163,60,18; --bg-glow:#f9dccd; --nav-bg:rgba(252,242,237,.9); --brand-a:#ff9a6b; --brand-b:#a33c12; --h1b:#a33c12}
+html[data-mode="light"][data-theme="graphite"]{--bg:#f2f4f6; --soft-s:#e9edf1; --line:#d3dae1; --accent:#4a5b73; --accent-soft:#e3e9f0; --accent-line:#a3b2c4; --acc-rgb:74,91,115; --bg-glow:#dde3ea; --nav-bg:rgba(242,244,246,.9); --brand-a:#9aaabd; --brand-b:#4a5b73; --h1b:#4a5b73}
+html[data-mode="light"] body{background:var(--bg)}
+/* ======================================================================================================================================================
+   GLASS: the starting look (Settings > Colors > Style; "Classic" keeps the earlier solid panels). Frosted, see-through panels over a soft glowing background.
+   Only the variables and a few large surfaces change, so every screen follows. Blur is used on large surfaces only (page background, navigation bar,
+   cards, dialogs, pop-ups), never on table rows, so older computers stay smooth. The lecture QR stays on a solid white tile.
+   ====================================================================================================================================================== */
+html[data-style="glass"]{
+  --glass-line:rgba(255,255,255,.17); --glass-hi:rgba(255,255,255,.32); --glass-lo:rgba(255,255,255,.06);
+  --glass-sh:0 14px 44px rgba(0,0,0,.38); --blur:22px; --bo:1.1; --muted:color-mix(in srgb,var(--ink) 80%,var(--bg));
+  --card:color-mix(in srgb,var(--card-s) 52%,transparent);
+  --soft:color-mix(in srgb,var(--soft-s) 55%,transparent);
+  --input-bg:color-mix(in srgb,var(--bg) 42%,transparent);
+  --line:rgba(255,255,255,.13); --shadow:0 10px 34px rgba(0,0,0,.3);
+}
+html[data-style="glass"][data-mode="light"]{
+  --glass-line:rgba(255,255,255,.85); --glass-hi:rgba(255,255,255,1); --glass-lo:rgba(60,80,120,.06);
+  --glass-sh:0 12px 38px rgba(31,50,90,.14); --bo:.8;
+  --card:color-mix(in srgb,#fff 58%,transparent);
+  --soft:color-mix(in srgb,var(--soft-s) 62%,transparent);
+  --input-bg:rgba(255,255,255,.62);
+  --line:rgba(40,62,98,.15); --shadow:0 8px 28px rgba(31,50,90,.1);
+}
+html[data-style="glass"] body{background:var(--bg)}
+html[data-style="glass"] body::before{content:"";position:fixed;inset:-12vmax;z-index:-1;pointer-events:none;will-change:transform;
+  background:
+    repeating-linear-gradient(90deg,rgba(255,255,255,.022) 0 1px,transparent 1px 8px),
+    radial-gradient(40vmax 40vmax at 14% 10%,rgb(var(--g1) / calc(.50 * var(--bo))),transparent 68%),
+    radial-gradient(36vmax 36vmax at 86% 16%,rgb(var(--g2) / calc(.40 * var(--bo))),transparent 68%),
+    radial-gradient(44vmax 44vmax at 72% 96%,rgb(var(--g1) / calc(.28 * var(--bo))),transparent 68%),
+    radial-gradient(32vmax 32vmax at 4% 88%,rgb(var(--g2) / calc(.26 * var(--bo))),transparent 68%);
+  animation:glassDrift 46s ease-in-out infinite alternate}
+@keyframes glassDrift{from{transform:translate3d(0,0,0) scale(1)}to{transform:translate3d(-2.5vmax,2vmax,0) scale(1.07)}}
+html[data-style="glass"][data-calm] body::before,html[data-style="glass"] body.present::before{animation:none}
+@media (prefers-reduced-motion:reduce){html[data-style="glass"] body::before{animation:none}}
+
+/* panels */
+html[data-style="glass"] .card{background:linear-gradient(150deg,rgba(255,255,255,.13),rgba(255,255,255,.02) 55%),var(--card);border:1px solid var(--glass-line);border-radius:22px;
+  -webkit-backdrop-filter:blur(var(--blur)) saturate(1.5);backdrop-filter:blur(var(--blur)) saturate(1.5);box-shadow:inset 1px 1px 0 var(--glass-hi),inset -1px -1px 0 var(--glass-lo),var(--glass-sh)}
+html[data-style="glass"] .card .card{-webkit-backdrop-filter:none;backdrop-filter:none;background:rgba(255,255,255,.04);box-shadow:inset 1px 1px 0 var(--glass-hi)}
+html[data-style="glass"] .table-wrap{background:var(--card);border-color:var(--glass-line);border-radius:18px;box-shadow:inset 1px 1px 0 var(--glass-hi)}
+html[data-style="glass"] th{background:color-mix(in srgb,var(--soft-s) 90%,transparent)}
+html[data-style="glass"] .nav{background:color-mix(in srgb,var(--card-s) 72%,transparent);-webkit-backdrop-filter:blur(26px) saturate(1.6);backdrop-filter:blur(26px) saturate(1.6);
+  border-bottom:1px solid var(--glass-line);box-shadow:inset 0 -1px 0 var(--glass-lo),0 8px 30px rgba(0,0,0,.16)}
+html[data-style="glass"] .nav a.l{border-radius:99px}
+html[data-style="glass"] .nav a.l.on{background:linear-gradient(180deg,rgba(255,255,255,.06),rgba(255,255,255,0)),var(--accent-soft);box-shadow:inset 1px 1px 0 var(--glass-hi),0 0 18px rgba(var(--acc-rgb),.28)}
+html[data-style="glass"] .brand i{background:radial-gradient(circle at 30% 25%,rgba(255,255,255,.85),transparent 42%),linear-gradient(135deg,var(--brand-a),var(--brand-b));box-shadow:inset 0 0 0 1px rgba(255,255,255,.4),0 0 16px rgba(var(--acc-rgb),.5)}
+
+/* buttons, fields */
+html[data-style="glass"] .btn{background:linear-gradient(180deg,rgba(255,255,255,.16),rgba(255,255,255,.03)),var(--card);border:1px solid var(--glass-line);border-radius:12px;box-shadow:inset 0 1px 0 var(--glass-hi)}
+html[data-style="glass"] .btn:hover{background:linear-gradient(180deg,rgba(255,255,255,.26),rgba(255,255,255,.07)),var(--card);border-color:var(--accent-line)}
+html[data-style="glass"] .btn.primary{background:linear-gradient(180deg,rgba(255,255,255,.38),rgba(255,255,255,0) 58%),var(--accent);border-color:rgba(255,255,255,.4);color:var(--accent-ink);box-shadow:inset 0 1px 0 rgba(255,255,255,.6),0 6px 22px rgba(var(--acc-rgb),.35)}
+html[data-style="glass"] .btn.primary:hover{background:linear-gradient(180deg,rgba(255,255,255,.5),rgba(255,255,255,.05) 58%),var(--accent)}
+html[data-style="glass"] input:not([type=checkbox]):not([type=radio]),html[data-style="glass"] select,html[data-style="glass"] textarea{background:var(--input-bg);border:1px solid var(--glass-line);border-radius:12px;box-shadow:inset 0 1px 3px rgba(0,0,0,.16)}
+html[data-style="glass"] option{background:var(--card-s);color:var(--ink)}
+html[data-style="glass"] .modebtn{background:linear-gradient(180deg,rgba(255,255,255,.16),rgba(255,255,255,.03)),var(--card);border-color:var(--glass-line);box-shadow:inset 0 1px 0 var(--glass-hi)}
+html[data-style="glass"] .uiswitch,html[data-style="glass"] .seg,html[data-style="glass"] .tabs{border-radius:99px}
+html[data-style="glass"] h1{font-weight:650;letter-spacing:-.02em}
+
+/* dense glass for things that float above the page (always readable) */
+html[data-style="glass"] dialog,html[data-style="glass"] .hp-pop,html[data-style="glass"] .nf-panel,html[data-style="glass"] .nf-toast,html[data-style="glass"] .mt-toast,html[data-style="glass"] .mt-fetch-card{
+  background:color-mix(in srgb,var(--card-s) 84%,transparent);-webkit-backdrop-filter:blur(26px) saturate(1.6);backdrop-filter:blur(26px) saturate(1.6);border:1px solid var(--glass-line);color:var(--ink)}
+html[data-style="glass"] dialog{border-radius:24px;box-shadow:inset 1px 1px 0 var(--glass-hi),0 30px 80px rgba(0,0,0,.5)}
+html[data-style="glass"] .hp-pop:before{background:var(--card-s)}
+html[data-style="glass"] dialog::backdrop{background:rgba(2,6,12,.5);-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px)}
+
+/* Settings: the four levels become tinted glass, each a different shade of the chosen color */
+html[data-style="glass"] .setnav{background:transparent;-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px)}
+html[data-style="glass"] .tabs1{background:color-mix(in srgb,var(--accent) 15%,transparent);border:1px solid var(--glass-line);border-radius:20px;box-shadow:inset 1px 1px 0 var(--glass-hi)}
+html[data-style="glass"] .t1:hover{background:color-mix(in srgb,var(--accent) 20%,transparent)}
+html[data-style="glass"] .t1.on{background:linear-gradient(180deg,rgba(255,255,255,.34),rgba(255,255,255,0) 58%),var(--accent);box-shadow:inset 0 1px 0 rgba(255,255,255,.55),0 4px 16px rgba(var(--acc-rgb),.35)}
+html[data-style="glass"] .t2{background:color-mix(in srgb,var(--accent) 10%,transparent);border-color:var(--glass-line)}
+html[data-style="glass"] .t2.on{background:color-mix(in srgb,var(--accent) 24%,transparent);box-shadow:inset 0 -3px 0 var(--accent),0 0 14px rgba(var(--acc-rgb),.2)}
+html[data-style="glass"] .sec{background:linear-gradient(150deg,rgba(255,255,255,.08),rgba(255,255,255,0) 60%),color-mix(in srgb,var(--accent) 9%,transparent);border:1px solid var(--glass-line);border-left:3px solid var(--accent-line);border-radius:16px;box-shadow:inset 1px 1px 0 var(--glass-hi)}
+html[data-style="glass"] .sec.l4{background:color-mix(in srgb,var(--accent) 4%,transparent);border-radius:13px;box-shadow:none}
+html[data-style="glass"] .sec>h2:hover,html[data-style="glass"] .sec>h3:hover{background:color-mix(in srgb,var(--accent) 14%,transparent)}
+html[data-style="glass"] .sec .card{background:color-mix(in srgb,var(--accent) 3%,transparent);box-shadow:none}
+
+/* light glass: dark accents with white text, so the shine on primary buttons and the selected tab stays gentle (the text must keep its contrast) */
+html[data-style="glass"][data-mode="light"] .btn.primary,html[data-style="glass"][data-mode="light"] .t1.on{background:linear-gradient(180deg,rgba(255,255,255,.07),rgba(255,255,255,0) 55%),var(--accent)}
+html[data-style="glass"][data-mode="light"] .btn.primary:hover{background:linear-gradient(180deg,rgba(255,255,255,.12),rgba(255,255,255,.02) 55%),var(--accent)}
+
+/* the lecture QR stays crisp on a solid white tile */
+html[data-style="glass"] .qrbox{background:#fff;-webkit-backdrop-filter:none;backdrop-filter:none;border:0;border-radius:24px;box-shadow:0 0 0 8px rgba(255,255,255,.14),0 20px 60px rgba(0,0,0,.35)}
+html[data-style="glass"] body.present .card{-webkit-backdrop-filter:none;backdrop-filter:none}
+
+/* browsers without blur, and people who ask for more contrast, get denser panels */
+@supports not ((backdrop-filter:blur(1px)) or (-webkit-backdrop-filter:blur(1px))){
+  html[data-style="glass"]{--card:color-mix(in srgb,var(--card-s) 94%,transparent);--soft:color-mix(in srgb,var(--soft-s) 94%,transparent)}
+  html[data-style="glass"][data-mode="light"]{--card:color-mix(in srgb,#fff 94%,transparent)}
+  html[data-style="glass"] .nav{background:var(--card-s)}
+}
+@media (prefers-contrast:more){
+  html[data-style="glass"]{--card:color-mix(in srgb,var(--card-s) 94%,transparent);--soft:color-mix(in srgb,var(--soft-s) 94%,transparent);--line:rgba(255,255,255,.3)}
+  html[data-style="glass"][data-mode="light"]{--card:#fff;--line:rgba(40,62,98,.4)}
+}
+
+/* ==== end of the part copied from app.css ==== */
+body{display:flex;justify-content:center;padding:18px 14px calc(30px + env(safe-area-inset-bottom))}
+.wrap{width:100%;max-width:440px}
+
+</style><script>
+/* the look: the instructor's colour (c), light or dark (m) and style (s) arrive after the # in the address, with the lecture, so this page matches their screens */
+(function () { var q = new URLSearchParams(location.hash.slice(1)), h = document.documentElement, c = q.get('c') || '', m = q.get('m') || '', st = q.get('s') || '';
+  if (/^[a-z]{3,12}$/.test(c) && c !== 'sky') h.setAttribute('data-theme', c);
+  h.setAttribute('data-mode', m === 'light' ? 'light' : 'dark'); h.setAttribute('data-style', st === 'classic' ? 'classic' : 'glass'); })();
+</script></head><body><div class="wrap">
+<div class="hd"><div class="k" id="course"></div><h1 id="title">Mark attendance</h1><div class="muted small" id="sub"></div></div>
+<div class="card result" id="state"><div class="ic info">…</div><h2>One moment…</h2></div>
+<div class="card stack" id="form" hidden>
+  <div><label for="reg">Registration number</label><input id="reg" autocomplete="off" autocapitalize="characters" placeholder="Your registration / roll number" maxlength="20"></div>
+  <div id="extra" hidden class="stack"><div class="alert">If your number is not in the class list, fill in your details so your instructor can check it.</div>
+    <div><label>Full name</label><input id="nm" autocomplete="name"></div><div><label>Program</label><input id="pr" placeholder="e.g. BDS"></div></div>
+  <button class="btn primary lg" id="go" style="width:100%;justify-content:center" disabled>Submit attendance</button>
+  <div class="small" id="err" style="color:var(--red);text-align:center"></div>
+  <a href="#" id="more" class="muted small" style="display:block;text-align:center">My number is not accepted</a>
+</div>
+<div class="card result" id="res" hidden><div class="ic Present">✓</div><h2>Received</h2><p id="rmsg" class="muted" style="margin:0"></p></div>
+<div class="priv" id="priv"></div>
+</div>
+<script>
+const $ = id => document.getElementById(id);
+const P = new URLSearchParams(location.hash.slice(1));
+const HUB = (P.get('u') || '').replace(/\/+$/, ''), KEY = P.get('k') || '', LEC = P.get('l') || '', TOK = P.get('t') || '';
+let DEV = ''; try { DEV = localStorage.getItem('dev') || ''; } catch (e) {}
+if (!DEV) { DEV = Array.from(crypto.getRandomValues(new Uint8Array(12))).map(x => x.toString(16).padStart(2, '0')).join(''); try { localStorage.setItem('dev', DEV); } catch (e) {} }
+let TICKET = '', NEED_LOC = false, best = null, watch = null, finished = true, locStart = Date.now(), fpv = '';
+function show(icon, title, text, cls) { $('state').hidden = false; $('state').innerHTML = '<div class="ic ' + (cls || 'info') + '">' + icon + '</div><h2></h2><p class="muted" style="margin:0"></p>'; $('state').querySelector('h2').textContent = title; $('state').querySelector('p').textContent = text || ''; }
+async function rpc(name, body) {
+  let last;
+  for (let i = 0; i < 3; i++) {                                    // a weak or switching mobile connection often fails the first try
+    try {
+      const r = await fetch(HUB + '/rest/v1/rpc/' + name, {method: 'POST', headers: {'apikey': KEY, 'Authorization': 'Bearer ' + KEY, 'Content-Type': 'application/json'}, body: JSON.stringify(body)});
+      const j = await r.json(); if (!r.ok) throw new Error(j.message || ('HTTP ' + r.status)); return j;
+    } catch (e) { last = e; $('err').textContent = 'Connection is weak, trying again…'; await new Promise(res => setTimeout(res, 1200 * (i + 1))); }
+  }
+  throw last;
+}
+async function sha(s) { try { const b = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(s)); return Array.from(new Uint8Array(b)).slice(0, 12).map(x => x.toString(16).padStart(2, '0')).join(''); } catch (e) { return ''; } }
+(async () => { let c = ''; try { const cv = document.createElement('canvas'); cv.width = 120; cv.height = 30; const x = cv.getContext('2d'); x.font = '16px Arial'; x.fillText('attend-é✓', 4, 20); c = cv.toDataURL().slice(-60); } catch (e) {}
+  fpv = await sha([navigator.userAgent, navigator.platform, screen.width, screen.height, devicePixelRatio, Intl.DateTimeFormat().resolvedOptions().timeZone, navigator.language, navigator.hardwareConcurrency, navigator.deviceMemory, c].join('|')); })();
+function startLoc() {
+  if (!NEED_LOC) return;
+  if (!navigator.geolocation) return;
+  finished = false; locStart = Date.now();
+  const stop = () => { if (watch != null) navigator.geolocation.clearWatch(watch); watch = null; finished = true; };
+  setTimeout(stop, 22000);                                         // a rough fix comes first on mobile data; keep listening for a sharper one
+  watch = navigator.geolocation.watchPosition(p => { const c = p.coords; if (!best || c.accuracy < best.acc) best = {lat: c.latitude, lng: c.longitude, acc: c.accuracy, ts: p.timestamp}; if (best.acc <= 20) setTimeout(stop, 600); },
+    e => { if (!best) finished = true; }, {enableHighAccuracy: true, timeout: 22000, maximumAge: 0});
+}
+async function waitLoc() { while (NEED_LOC && !finished && Date.now() - locStart < 23000) await new Promise(r => setTimeout(r, 200)); }
+async function start() {
+  if (!/^https:\/\//.test(HUB) && !/^http:\/\/(localhost|127\.0\.0\.1)/.test(HUB) || !KEY || !LEC || !TOK) { show('!', 'Link not recognised', 'Scan the QR code shown by your instructor.', 'Absent'); return; }
+  let j;
+  try { j = await rpc('qr_ticket', {p_lecture: LEC, p_token: TOK, p_dev: DEV}); }
+  catch (e) { show('!', 'No connection', 'Check your internet (mobile data or Wi-Fi), then scan the QR code again.', 'Absent'); return; }
+  if (!j.ok) { show(j.code === 'closed' ? '⏱' : '↻', j.code === 'closed' ? 'Attendance is not open' : 'That code has changed', j.message); return; }
+  TICKET = j.ticket; NEED_LOC = !!j.need_loc;
+  if (j.label) {                                                   // 'course|Lecture n|date · hall' (older rows: one text)
+    const p = String(j.label).split('|');
+    if (p.length >= 3) { $('course').textContent = p[0]; $('title').textContent = p[1] || 'Mark attendance'; $('sub').textContent = p[2]; }
+    else { $('course').textContent = j.label; }
+  }
+  $('state').hidden = true; $('form').hidden = false;
+  $('priv').textContent = 'One check-in per phone. ' + (NEED_LOC ? "To verify attendance, your phone's location and device are saved with this lecture's record." : "To verify attendance, your device is saved with this lecture's record.");
+  startLoc(); $('reg').focus();
+}
+const reg = $('reg'), go = $('go');
+reg.oninput = () => { reg.value = reg.value.replace(/[^0-9A-Za-z\- ]/g, '').toUpperCase(); go.disabled = reg.value.replace(/[^0-9A-Za-z]/g, '').length < 3; $('err').textContent = ''; };
+$('more').onclick = e => { e.preventDefault(); $('extra').hidden = false; $('more').hidden = true; };
+async function submit() {
+  go.disabled = true; $('err').textContent = ''; go.textContent = 'Submitting…'; await waitLoc();
+  const data = {name: $('nm').value, program: $('pr').value, dev_ls: DEV, fp: fpv, ua: navigator.userAgent.slice(0, 200)};
+  if (best) Object.assign(data, {lat: best.lat, lng: best.lng, acc: best.acc, loc_ts: best.ts});
+  try {
+    const j = await rpc('qr_submit', {p_lecture: LEC, p_token: '', p_reg: reg.value.replace(/\s+/g, ''), p_dev: DEV, p_data: data, p_ticket: TICKET});
+    if (!j.ok) { $('err').textContent = j.message; go.disabled = j.code === 'bad_reg' ? false : true; go.textContent = 'Submit attendance'; if (j.code === 'bad_ticket') { $('form').hidden = true; show('↻', 'This page has expired', j.message); } return; }
+    $('form').hidden = true; $('res').hidden = false; $('rmsg').textContent = j.message;
+  } catch (e) { $('err').textContent = 'No connection. Check your internet (mobile data or Wi-Fi) and press Submit again.'; go.disabled = false; go.textContent = 'Submit attendance'; }
+}
+go.onclick = submit; reg.onkeydown = e => { if (e.key === 'Enter' && !go.disabled) submit(); };
+start();
+</script></body></html>
