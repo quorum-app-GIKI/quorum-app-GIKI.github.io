@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0f766e"><meta name="attendance-hub-page" content="1"><link rel="icon" href="data:,"><title>Mark attendance</title>
+<!-- The phone page for check-ins through the hub. One self-contained file: it can be served by the instructor's computer or by any static web host.
+     Everything it needs is after the # in the address (hub address, public key, lecture, code); a phone never sends that part to a web server.
+     Its look is the app's own student page (the style rules below are copied from the app's stylesheet; tests/test_z13_hubpage.py checks they still match). -->
+<style>
+:root{
+  color-scheme:dark;
+  --bg:#05080b; --card:#0b1015; --ink:#e8f1f8; --muted:#8aa0b2; --line:#1b2833; --soft:#111a22;
+  --accent:#7cc4ff; --accent-ink:#031220; --accent-soft:#0e2740; --accent-line:#2a5d8c;
+  --green:#5ee6a8; --green-bg:#0c2a1f; --red:#ff8f8f; --red-bg:#2c1215; --amber:#ffd36e; --amber-bg:#2c2108;
+  --blue:#8ec5ff; --blue-bg:#0f2238; --grey-bg:#17222b;
+  --radius:14px; --shadow:0 0 0 1px rgba(var(--acc-rgb),.03),0 8px 28px rgba(0,0,0,.45);
+  --glow:0 0 0 3px rgba(var(--acc-rgb),.18);
+  --acc-rgb:124,196,255; --bg-glow:#0b1c2c; --nav-bg:rgba(5,8,11,.82); --brand-a:#a9dcff; --brand-b:#4aa8f0;
+}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:radial-gradient(1200px 500px at 50% -200px,var(--bg-glow) 0,transparent 70%),var(--bg);background-attachment:fixed;color:var(--ink);font:15px/1.5 "Segoe UI Variable","Segoe UI",system-ui,-apple-system,Roboto,sans-serif;-webkit-font-smoothing:antialiased}
+a{color:var(--accent);text-decoration:none} a:hover{text-decoration:underline}
+h1{font-size:1.5rem;margin:0 0 .25rem;letter-spacing:-.01em} h2{font-size:1.1rem;margin:0 0 .6rem} h3{font-size:.95rem;margin:0 0 .4rem}
+.muted{color:var(--muted)} .small{font-size:.85rem} .mono{font-variant-numeric:tabular-nums}
+.card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:18px;box-shadow:var(--shadow)}
+.stack>*+*{margin-top:12px}
+.btn{font:inherit;font-weight:600;border:1px solid var(--line);background:var(--card);color:var(--ink);padding:8px 14px;border-radius:9px;cursor:pointer;display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
+.btn:hover{background:var(--soft);border-color:var(--accent-line);text-decoration:none} .btn:disabled{opacity:.5;cursor:default}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink);box-shadow:0 0 18px rgba(var(--acc-rgb),.22)} .btn.primary:hover{filter:brightness(1.08)}
+.btn.danger{color:var(--red);border-color:var(--red-bg)} .btn.sm{padding:4px 10px;font-size:.85rem;font-weight:500}
+.btn.lg{padding:12px 20px;font-size:1.02rem}
+label{display:block;font-size:.82rem;font-weight:600;color:var(--muted);margin-bottom:4px}
+input,select,textarea{font:inherit;color:var(--ink);background:#070b0f;border:1px solid var(--line);border-radius:9px;padding:8px 10px;width:100%}
+input:focus,select:focus,textarea:focus{outline:none;border-color:var(--accent);box-shadow:var(--glow)}
+.alert{padding:10px 14px;border-radius:10px;font-size:.9rem;background:var(--amber-bg);color:var(--amber)}
+.alert.bad{background:var(--red-bg);color:var(--red)} .alert.ok{background:var(--green-bg);color:var(--green)}
+h1{background:linear-gradient(180deg,#fff,#b9dcf7);-webkit-background-clip:text;background-clip:text;color:transparent}
+.card{background:linear-gradient(180deg,rgba(var(--acc-rgb),.035),transparent 60%),var(--card)}
+body{display:flex;justify-content:center;padding:18px 14px calc(30px + env(safe-area-inset-bottom))}
+.wrap{width:100%;max-width:440px}
+.hd{margin:6px 2px 14px} .hd .k{font-size:.8rem;font-weight:700;color:var(--accent);text-transform:uppercase;letter-spacing:.06em}
+.hd h1{font-size:1.45rem;margin:2px 0}
+#reg{font-size:1.5rem;letter-spacing:.06em;text-align:center;padding:14px;font-variant-numeric:tabular-nums}
+.result{text-align:center;padding:10px 4px}
+.result .ic{width:68px;height:68px;border-radius:50%;margin:0 auto 12px;display:flex;align-items:center;justify-content:center;font-size:2rem;font-weight:700}
+.ic.Present,.ic.Late{background:var(--green-bg);color:var(--green)} .ic.Absent{background:var(--red-bg);color:var(--red)} .ic.Flagged,.ic.info{background:var(--amber-bg);color:var(--amber)}
+.priv{font-size:.8rem;color:var(--muted);margin-top:14px;text-align:center}
+[hidden]{display:none!important}
+</style></head><body><div class="wrap">
+<div class="hd"><div class="k" id="course"></div><h1 id="title">Mark attendance</h1><div class="muted small" id="sub"></div></div>
+<div class="card result" id="state"><div class="ic info">…</div><h2>One moment…</h2></div>
+<div class="card stack" id="form" hidden>
+  <div><label for="reg">Registration number</label><input id="reg" autocomplete="off" autocapitalize="characters" placeholder="Your registration / roll number" maxlength="20"></div>
+  <div id="extra" hidden class="stack"><div class="alert">If your number is not in the class list, fill in your details so your instructor can check it.</div>
+    <div><label>Full name</label><input id="nm" autocomplete="name"></div><div><label>Program</label><input id="pr" placeholder="e.g. BDS"></div></div>
+  <button class="btn primary lg" id="go" style="width:100%;justify-content:center" disabled>Submit attendance</button>
+  <div class="small" id="err" style="color:var(--red);text-align:center"></div>
+  <a href="#" id="more" class="muted small" style="display:block;text-align:center">My number is not accepted</a>
+</div>
+<div class="card result" id="res" hidden><div class="ic Present">✓</div><h2>Received</h2><p id="rmsg" class="muted" style="margin:0"></p></div>
+<div class="priv" id="priv"></div>
+</div>
+<script>
+const $ = id => document.getElementById(id);
+const P = new URLSearchParams(location.hash.slice(1));
+const HUB = (P.get('u') || '').replace(/\/+$/, ''), KEY = P.get('k') || '', LEC = P.get('l') || '', TOK = P.get('t') || '';
+let DEV = ''; try { DEV = localStorage.getItem('dev') || ''; } catch (e) {}
+if (!DEV) { DEV = Array.from(crypto.getRandomValues(new Uint8Array(12))).map(x => x.toString(16).padStart(2, '0')).join(''); try { localStorage.setItem('dev', DEV); } catch (e) {} }
+let TICKET = '', NEED_LOC = false, best = null, watch = null, finished = true, locStart = Date.now(), fpv = '';
+function show(icon, title, text, cls) { $('state').hidden = false; $('state').innerHTML = '<div class="ic ' + (cls || 'info') + '">' + icon + '</div><h2></h2><p class="muted" style="margin:0"></p>'; $('state').querySelector('h2').textContent = title; $('state').querySelector('p').textContent = text || ''; }
+async function rpc(name, body) {
+  let last;
+  for (let i = 0; i < 3; i++) {                                    // a weak or switching mobile connection often fails the first try
+    try {
+      const r = await fetch(HUB + '/rest/v1/rpc/' + name, {method: 'POST', headers: {'apikey': KEY, 'Authorization': 'Bearer ' + KEY, 'Content-Type': 'application/json'}, body: JSON.stringify(body)});
+      const j = await r.json(); if (!r.ok) throw new Error(j.message || ('HTTP ' + r.status)); return j;
+    } catch (e) { last = e; $('err').textContent = 'Connection is weak, trying again…'; await new Promise(res => setTimeout(res, 1200 * (i + 1))); }
+  }
+  throw last;
+}
+async function sha(s) { try { const b = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(s)); return Array.from(new Uint8Array(b)).slice(0, 12).map(x => x.toString(16).padStart(2, '0')).join(''); } catch (e) { return ''; } }
+(async () => { let c = ''; try { const cv = document.createElement('canvas'); cv.width = 120; cv.height = 30; const x = cv.getContext('2d'); x.font = '16px Arial'; x.fillText('attend-é✓', 4, 20); c = cv.toDataURL().slice(-60); } catch (e) {}
+  fpv = await sha([navigator.userAgent, navigator.platform, screen.width, screen.height, devicePixelRatio, Intl.DateTimeFormat().resolvedOptions().timeZone, navigator.language, navigator.hardwareConcurrency, navigator.deviceMemory, c].join('|')); })();
+function startLoc() {
+  if (!NEED_LOC) return;
+  if (!navigator.geolocation) return;
+  finished = false; locStart = Date.now();
+  const stop = () => { if (watch != null) navigator.geolocation.clearWatch(watch); watch = null; finished = true; };
+  setTimeout(stop, 22000);                                         // a rough fix comes first on mobile data; keep listening for a sharper one
+  watch = navigator.geolocation.watchPosition(p => { const c = p.coords; if (!best || c.accuracy < best.acc) best = {lat: c.latitude, lng: c.longitude, acc: c.accuracy, ts: p.timestamp}; if (best.acc <= 20) setTimeout(stop, 600); },
+    e => { if (!best) finished = true; }, {enableHighAccuracy: true, timeout: 22000, maximumAge: 0});
+}
+async function waitLoc() { while (NEED_LOC && !finished && Date.now() - locStart < 23000) await new Promise(r => setTimeout(r, 200)); }
+async function start() {
+  if (!/^https:\/\//.test(HUB) && !/^http:\/\/(localhost|127\.0\.0\.1)/.test(HUB) || !KEY || !LEC || !TOK) { show('!', 'Link not recognised', 'Scan the QR code shown by your instructor.', 'Absent'); return; }
+  let j;
+  try { j = await rpc('qr_ticket', {p_lecture: LEC, p_token: TOK, p_dev: DEV}); }
+  catch (e) { show('!', 'No connection', 'Check your internet (mobile data or Wi-Fi), then scan the QR code again.', 'Absent'); return; }
+  if (!j.ok) { show(j.code === 'closed' ? '⏱' : '↻', j.code === 'closed' ? 'Attendance is not open' : 'That code has changed', j.message); return; }
+  TICKET = j.ticket; NEED_LOC = !!j.need_loc;
+  if (j.label) {                                                   // 'course|Lecture n|date · hall' (older rows: one text)
+    const p = String(j.label).split('|');
+    if (p.length >= 3) { $('course').textContent = p[0]; $('title').textContent = p[1] || 'Mark attendance'; $('sub').textContent = p[2]; }
+    else { $('course').textContent = j.label; }
+  }
+  $('state').hidden = true; $('form').hidden = false;
+  $('priv').textContent = 'One check-in per phone. ' + (NEED_LOC ? "To verify attendance, your phone's location and device are saved with this lecture's record." : "To verify attendance, your device is saved with this lecture's record.");
+  startLoc(); $('reg').focus();
+}
+const reg = $('reg'), go = $('go');
+reg.oninput = () => { reg.value = reg.value.replace(/[^0-9A-Za-z\- ]/g, '').toUpperCase(); go.disabled = reg.value.replace(/[^0-9A-Za-z]/g, '').length < 3; $('err').textContent = ''; };
+$('more').onclick = e => { e.preventDefault(); $('extra').hidden = false; $('more').hidden = true; };
+async function submit() {
+  go.disabled = true; $('err').textContent = ''; go.textContent = 'Submitting…'; await waitLoc();
+  const data = {name: $('nm').value, program: $('pr').value, dev_ls: DEV, fp: fpv, ua: navigator.userAgent.slice(0, 200)};
+  if (best) Object.assign(data, {lat: best.lat, lng: best.lng, acc: best.acc, loc_ts: best.ts});
+  try {
+    const j = await rpc('qr_submit', {p_lecture: LEC, p_token: '', p_reg: reg.value.replace(/\s+/g, ''), p_dev: DEV, p_data: data, p_ticket: TICKET});
+    if (!j.ok) { $('err').textContent = j.message; go.disabled = j.code === 'bad_reg' ? false : true; go.textContent = 'Submit attendance'; if (j.code === 'bad_ticket') { $('form').hidden = true; show('↻', 'This page has expired', j.message); } return; }
+    $('form').hidden = true; $('res').hidden = false; $('rmsg').textContent = j.message;
+  } catch (e) { $('err').textContent = 'No connection. Check your internet (mobile data or Wi-Fi) and press Submit again.'; go.disabled = false; go.textContent = 'Submit attendance'; }
+}
+go.onclick = submit; reg.onkeydown = e => { if (e.key === 'Enter' && !go.disabled) submit(); };
+start();
+</script></body></html>
